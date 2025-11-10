@@ -1,5 +1,9 @@
-# Script to import and prepare .asd files from MODEL field spectrometer
+# Script to import and prepare .asd files from field spectrometer
 # Code adapted from appetizer_course_dm20251103.R
+# Adapted by Laurel Miller, Nov 2025
+# Inputs: folder(s) full of .asd files, metadata in .csv format
+# Outputs: Dataframes of spectral data with metadata, functions to lengthen
+# for plotting and a plotting function using ggplot2.
 
 library(tidyverse)
 library(asdreader)
@@ -34,9 +38,25 @@ spectra_plot = function(df_long, category) {
   plot
 }
 
-# FILL IN DIRECTORIES
-asd_dir = '/home/girlmunculus/spectraProj/asd'
-github_dir = '/home/girlmunculus/GitHub/ProtiumSpectra/'
+spectra_cleanup = function(df) {
+  spectra = df
+  colnames(spectra) <- paste("nm", colnames(spectra), sep = "")
+  rownames(spectra) <- sub(".*(?=Protium)", "", rownames(spectra), perl = TRUE)
+  spectra_clean = as.data.frame(spectra) %>% 
+    mutate(sample = str_split_i(rownames(spectra), 'Protium', 2) %>% 
+             str_split_i(., 'x', 1) %>%
+             as.numeric,
+           replicate = str_split_i(rownames(spectra), 'x', 2) %>% 
+             str_split_i(., '.asd', 1) %>%
+             as.numeric) %>%
+    filter(!if_any(everything(), ~ str_detect(.x, "Inf"))) %>%
+    filter(!is.na(sample)) # remove white reading NA's
+  return(spectra)
+}
+
+# FILL IN DIRECTORIES FOR YOUR OWN FILES
+asd_dir = '/home/girlmunculus/spectraProj/asd/march20Protium-20251104T221809Z-1-001' # location of .asd files
+github_dir = '/home/girlmunculus/GitHub/ProtiumSpectra/' # location of GitHub project
 
 # some basic test commands using provided test file
 test_file = asd_file()
@@ -53,24 +73,24 @@ plot(as.numeric(spectra), type = 'l')
 
 # clean nir data up
 colnames(spectra) <- paste("nm", colnames(spectra), sep = "")
-rownames(spectra) <- str_extract(rownames(spectra), "Protium.*")
+rownames(spectra) <- sub(".*(?=Protium)", "", rownames(spectra), perl = TRUE)
 spectra_clean = as.data.frame(spectra) %>% 
                 mutate(sample = str_split_i(rownames(spectra), 'Protium', 2) %>% 
                 str_split_i(., 'x', 1) %>%
                 as.numeric,
-              replicate = str_split_i(rownames(spectra), 'x', 2) %>% 
+                replicate = str_split_i(rownames(spectra), 'x', 2) %>% 
                 str_split_i(., '.asd', 1) %>%
                 as.numeric) %>%
-                select(sample, replicate, starts_with('nm')) %>%
+                dplyr::select(sample, replicate, starts_with('nm')) %>%
                 filter(!if_any(everything(), ~ str_detect(.x, "Inf"))) %>%
                 filter(!is.na(sample)) # remove white reading NA's
 
-# turn spectra into long df for plotting
-spectra_long = lengthen(spectra_clean)
+# turn spectra into long df for plotting (takes a bit)
+# spectra_long = lengthen(spectra_clean)
 
 # plot spectral chart (this takes a while)
 # you can change 'color =' to groupings of interest (species, etc.)
-spectra_plot(spectra_long, spectra_long$sample)
+# spectra_plot(spectra_long, spectra_long$sample)
 
 # read in the metadata on each sample
 setwd(github_dir)
@@ -79,19 +99,24 @@ species = meta %>% mutate(sample = str_split_i(ViewSpecFile.Folder, 'Protium', 2
                             as.numeric) %>%
   rename(population_lineage = population.lineage,
          geographic_location = geographic.location) %>%
-  select(sample, species, population_lineage, geographic_location)
+  dplyr::select(sample, species, population_lineage, geographic_location)
 
 # combine species metadata with nir data
 nir = spectra_clean %>% left_join(species, by = 'sample') %>%
-  select(sample, replicate, species, population_lineage, geographic_location, starts_with('nm'))
+  dplyr::select(sample, replicate, species, population_lineage, geographic_location, starts_with('nm'))
 
-# PCA of all species across all wavelengths
-nir_num = nir %>% select(starts_with('nm'))
+# test PCA of all species across all wavelengths
+nir_num = nir %>% dplyr::select(starts_with('nm'))
 pca_all = prcomp(nir_num, center = T, scale. = T)
 nir = cbind(nir, pca_all$x[,1:5])
-pcaplot = ggplot(nir, aes(x = PC1, y = PC2, color = geographic_location)) + geom_point()
+pcaplot = ggplot(nir, aes(x = PC1, y = PC2, color = species)) + 
+  geom_point() +
+  scale_color_viridis_d(option = "A")
 pcaplot
 
-# plot spectra by species
+# test plot spectra by species
 nir_long = lengthen(nir)
 spectra_plot(nir_long, nir_long$species)
+
+# now, open asd_identify.R to start linear discriminant analysis (LDA)
+# for species identification.
