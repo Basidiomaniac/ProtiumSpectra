@@ -1,7 +1,7 @@
 # Script to conduct linear discriminant analysis (LDA) on spectral dataframes
-# Code adapted from appetizer_course_dm20251103.R (author: )
+# Code adapted from appetizer_course_dm20251103.R (author: Niko Darci-Maher)
 # Adapted by Laurel Miller, Nov 2025
-# Input: Spectral dataframe from asd_cleanup.R
+# Input: Spectral dataframe from asd_cleanup.R (nir)
 # Output: LDA model capable of discriminating species at 99% accuracy
 
 library(viridis)
@@ -43,14 +43,17 @@ line_plot_species = ggplot(nir_long, aes(x = wavelength, y = intensity, color = 
 line_plot_species
 
 # check the normality of all the wavelengths
+# NOTE: When running all test data, multimodal distributions show up. Why??
 nir_norm = nir %>% mutate_at(vars(starts_with('nm')), scale)
-nir_long = nir_norm %>% dplyr::select(sample, replicate, species, starts_with('nm')) %>%
+nir_long = nir_norm %>% dplyr::select(sample, replicate, species, date, starts_with('nm')) %>%
   pivot_longer(cols = starts_with('nm'),
                names_to = 'wavelength',
                values_to = 'reflectance')
 normaldist_plot = ggplot(nir_long, aes(x = reflectance, color = wavelength)) + 
   geom_density(alpha = 0.5) + 
-  theme(legend.position = 'none')
+  theme_classic() +
+  theme(legend.position = 'none') +
+  facet_wrap(~ date)
 normaldist_plot
 
 # separate out wavelength data, produce LDA model!
@@ -66,14 +69,14 @@ lda_model = lda(x = nir_training[, wavelengths], grouping = nir_training$species
 species_predict = MASS:::predict.lda(lda_model, newdata = nir_testing[, wavelengths])
 
 # how did we do on actual species accuracy?
-accuracy = mean(species_predict == nir_testing$species)
+accuracy = mean(species_predict$class == nir_testing$species)
 accuracy # for test dataset, accuracy is 99.08%!
 
 # Get LD1 and LD2 scores for species
 lda_data <- data.frame(
   Species = nir_testing$species,
   LD1 = species_predict$x[, 1],
-  LD2 = species_predict$x[, 2] # Only the first two LDs are typically used for 2D plots
+  LD2 = species_predict$x[, 2] # Only the first two LDs are used
 )
 
 # plot LD in 2D space

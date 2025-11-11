@@ -8,6 +8,7 @@
 library(tidyverse)
 library(asdreader)
 library(viridis)
+library(klaR)
 
 # functions
 
@@ -55,7 +56,7 @@ spectra_cleanup = function(df) {
 }
 
 # FILL IN DIRECTORIES FOR YOUR OWN FILES
-asd_dir = '/home/girlmunculus/spectraProj/asd/march20Protium-20251104T221809Z-1-001' # location of .asd files
+asd_dir = '/home/girlmunculus/spectraProj/asd/' # location of .asd files
 github_dir = '/home/girlmunculus/GitHub/ProtiumSpectra/' # location of GitHub project
 
 # some basic test commands using provided test file
@@ -68,6 +69,8 @@ plot(as.numeric(test_spectra), type = 'l')
 setwd(asd_dir)
 filepaths = list.files(pattern = "*.asd", 
                        recursive = TRUE, full.names = TRUE)
+
+# go through files, adding collection date and merging to main
 spectra = get_spectra(filepaths, "reflectance")
 plot(as.numeric(spectra), type = 'l')
 
@@ -83,6 +86,7 @@ spectra_clean = as.data.frame(spectra) %>%
                 as.numeric) %>%
                 dplyr::select(sample, replicate, starts_with('nm')) %>%
                 filter(!if_any(everything(), ~ str_detect(.x, "Inf"))) %>%
+                filter(if_any(everything(), ~ . < 0.9)) %>%
                 filter(!is.na(sample)) # remove white reading NA's
 
 # turn spectra into long df for plotting (takes a bit)
@@ -92,18 +96,22 @@ spectra_clean = as.data.frame(spectra) %>%
 # you can change 'color =' to groupings of interest (species, etc.)
 # spectra_plot(spectra_long, spectra_long$sample)
 
+# stepclass here
+
+
 # read in the metadata on each sample
 setwd(github_dir)
 meta = read.csv('subserratum_NIR_project.csv')
 species = meta %>% mutate(sample = str_split_i(ViewSpecFile.Folder, 'Protium', 2) %>%
                             as.numeric) %>%
   rename(population_lineage = population.lineage,
-         geographic_location = geographic.location) %>%
-  dplyr::select(sample, species, population_lineage, geographic_location)
+         geographic_location = geographic.location,
+         date = DataFolder) %>%
+  dplyr::select(sample, species, population_lineage, geographic_location, date)
 
 # combine species metadata with nir data
 nir = spectra_clean %>% left_join(species, by = 'sample') %>%
-  dplyr::select(sample, replicate, species, population_lineage, geographic_location, starts_with('nm'))
+  dplyr::select(sample, replicate, species, population_lineage, geographic_location, date, starts_with('nm'))
 
 # test PCA of all species across all wavelengths
 nir_num = nir %>% dplyr::select(starts_with('nm'))
