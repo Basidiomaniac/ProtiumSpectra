@@ -1,0 +1,4 @@
+12 Nov 2025 - Started log. Currently have asd_cleanup.R, asd_identify.R, and asd_analyze.R
+Added the package prospectr to splice gaps in ASD readings. Looks like the gaps are due to the spectrometer used having three separate readers,
+which splice their data together to create the final file. spliceCorrection() from prospectr works well to flatten these. This is now
+incorporated into asd_cleanup.R

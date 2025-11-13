@@ -6,6 +6,7 @@
 
 library(viridis)
 library(klaR)
+library(lme4)
 
 # color by species and plot all sample spectra (mult. per leaf and species)
 nir_sample = nir %>% group_by(sample) %>%
@@ -39,11 +40,14 @@ line_plot_species
 # plot with density by species
 nir_long = lengthen(nir)
 line_plot_species = ggplot(nir_long, aes(x = wavelength, y = intensity, color = species)) +
-  geom_line(aes(group = sample), alpha = 0.2)
+  geom_line(aes(group = sample), alpha = 0.2) +
+  facet_wrap(~ date)
 line_plot_species
 
 # check the normality of all the wavelengths
 # NOTE: When running all test data, multimodal distributions show up. Why??
+# ANSWER: Each date had unique data skews. Day-to-day calibration MATTERS.
+# In future sampling, should find a way to standardize results. Standard sample?
 nir_norm = nir %>% mutate_at(vars(starts_with('nm')), scale)
 nir_long = nir_norm %>% dplyr::select(sample, replicate, species, date, starts_with('nm')) %>%
   pivot_longer(cols = starts_with('nm'),
@@ -56,13 +60,22 @@ normaldist_plot = ggplot(nir_long, aes(x = reflectance, color = wavelength)) +
   facet_wrap(~ date)
 normaldist_plot
 
+# hmm, measurements across dates seem to vary, but this is also because we 
+# sampled different species on different days. Let's compare within species
+# across dates.
+date_lmer = lmer(intensity ~ date + (1 | species), data = nir_long)
+summary(date_lmer)
+
+# no surprise: species and date are sig. predictors of intensity,
+
+
 # separate out wavelength data, produce LDA model!
 # pull the first for each species as test data, reserve the rest as training data
-nir_training = nir %>% group_by(species) %>%
+nir_training = nir %>% group_by(species, date) %>%
                   filter(sample != min(sample)) # all but first sample per species
-nir_testing = nir %>% group_by(species) %>%
+nir_testing = nir %>% group_by(species, date) %>%
                   filter(sample == min(sample)) # ONLY first sample per species
-wavelengths = grep("^nm", names(nir_training), value = TRUE)
+wavelengths = c("date_num", grep("^nm", names(nir_training), value = TRUE))
 lda_model = lda(x = nir_training[, wavelengths], grouping = nir_training$species)
 
 # make the species prediction!
@@ -75,6 +88,7 @@ accuracy # for test dataset, accuracy is 99.08%!
 # Get LD1 and LD2 scores for species
 lda_data <- data.frame(
   Species = nir_testing$species,
+  Date = nir_testing$date_num,
   LD1 = species_predict$x[, 1],
   LD2 = species_predict$x[, 2] # Only the first two LDs are used
 )
@@ -94,7 +108,8 @@ lda_space_plot <- ggplot(lda_data, aes(x = LD1, y = LD2, color = Species)) +
     y = "Linear Discriminant 2 (LD2)"
   ) +
   scale_x_continuous(limits = c(-50, 40)) +
-  scale_y_continuous(limits = c(-50, 40))
+  scale_y_continuous(limits = c(-50, 40)) +
+  facet_wrap(~ Date)
 lda_space_plot # looks like the LDA covers a decent amount of variance, species are well-separated
 
 # let's see how good ALL our LD's are
@@ -138,6 +153,7 @@ tile_plot = ggplot() +
   ) +
   scale_color_viridis_d(begin = 0, end = 0.9, option = "A") +
   scale_fill_viridis_d(option = "C",) +
+  facet_wrap(~ Date) +
   theme_classic()
 tile_plot
 # for the test data, we see contours that encapsulate our data's LD's pretty well.

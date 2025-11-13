@@ -8,7 +8,8 @@
 library(tidyverse)
 library(asdreader)
 library(viridis)
-library(klaR)
+library(prospectr)
+library(lubridate)
 
 # functions
 
@@ -67,27 +68,34 @@ plot(as.numeric(test_spectra), type = 'l')
 
 # read .asd files
 setwd(asd_dir)
-filepaths = list.files(pattern = "*.asd", 
+filepaths = list.files(pattern = "\\.asd$", 
                        recursive = TRUE, full.names = TRUE)
 
 # go through files, adding collection date and merging to main
 spectra = get_spectra(filepaths, "reflectance")
-plot(as.numeric(spectra), type = 'l')
+# plot(as.numeric(spectra), type = 'l')
 
 # clean nir data up
 colnames(spectra) <- paste("nm", colnames(spectra), sep = "")
 rownames(spectra) <- sub(".*(?=Protium)", "", rownames(spectra), perl = TRUE)
 spectra_clean = as.data.frame(spectra) %>% 
-                mutate(sample = str_split_i(rownames(spectra), 'Protium', 2) %>% 
-                str_split_i(., 'x', 1) %>%
-                as.numeric,
-                replicate = str_split_i(rownames(spectra), 'x', 2) %>% 
-                str_split_i(., '.asd', 1) %>%
-                as.numeric) %>%
-                dplyr::select(sample, replicate, starts_with('nm')) %>%
                 filter(!if_any(everything(), ~ str_detect(.x, "Inf"))) %>%
-                filter(if_any(everything(), ~ . < 0.9)) %>%
+                filter(if_any(everything(), ~ . < 1)) %>%
                 filter(!is.na(sample)) # remove white reading NA's
+
+# splicing to fix steps in measurements caused by spectrometer's three scanners
+# NOTE: This currently only fixes the 1000nm gap, not the 1801nm one.
+spectra_spliced = spliceCorrection(X = spectra_clean, wav = 350:2500)
+spectra_cleaner = spectra_spliced %>%
+        as.data.frame() %>% 
+        mutate(sample = str_split_i(rownames(spectra_clean), 'Protium', 2) %>% 
+         str_split_i(., 'x', 1) %>%
+         as.numeric,
+       replicate = str_split_i(rownames(spectra_clean), 'x', 2) %>% 
+         str_split_i(., '.asd', 1) %>%
+         as.numeric) %>%
+    dplyr::select(sample, replicate, starts_with('nm')) %>% 
+  mutate(sample = str_pad(sample, width = 3, side = "left", pad = "0"))
 
 # turn spectra into long df for plotting (takes a bit)
 # spectra_long = lengthen(spectra_clean)
@@ -107,21 +115,15 @@ species = meta %>% mutate(sample = str_split_i(ViewSpecFile.Folder, 'Protium', 2
   rename(population_lineage = population.lineage,
          geographic_location = geographic.location,
          date = DataFolder) %>%
-  dplyr::select(sample, species, population_lineage, geographic_location, date)
+  dplyr::select(sample, species, population_lineage, geographic_location, date) %>% 
+  mutate(sample = str_pad(sample, width = 3, side = "left", pad = "0"))
 
 # combine species metadata with nir data
-nir = spectra_clean %>% left_join(species, by = 'sample') %>%
-  dplyr::select(sample, replicate, species, population_lineage, geographic_location, date, starts_with('nm'))
-
-# test PCA of all species across all wavelengths
-nir_num = nir %>% dplyr::select(starts_with('nm'))
-pca_all = prcomp(nir_num, center = T, scale. = T)
-nir = cbind(nir, pca_all$x[,1:5])
-pcaplot = ggplot(nir, aes(x = PC1, y = PC2, color = species)) + 
-  geom_point() +
-  scale_color_viridis_d(option = "A")
-pcaplot
-
+nir = spectra_cleaner %>% left_join(species, by = 'sample') %>%
+  dplyr::select(sample, replicate, species, population_lineage, 
+                geographic_location, date, starts_with('nm')) %>% 
+  mutate(date_parsed = parse_date_time(date, orders = "B y")) %>%
+  mutate(date_num = as.numeric(date_parsed))  # make date numeric for LDA later
 # test plot spectra by species
 nir_long = lengthen(nir)
 spectra_plot(nir_long, nir_long$species)
