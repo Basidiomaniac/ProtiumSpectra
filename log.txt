@@ -1,4 +1,12 @@
 12 Nov 2025 - Started log. Currently have asd_cleanup.R, asd_identify.R, and asd_analyze.R
 Added the package prospectr to splice gaps in ASD readings. Looks like the gaps are due to the spectrometer used having three separate readers,
 which splice their data together to create the final file. spliceCorrection() from prospectr works well to flatten these. This is now
-incorporated into asd_cleanup.R
+incorporated into asd_cleanup.R -Laurel
+
+14 Nov 2025 - Made major upgrades to asd_identify.R. Added a model for averaged values within each sample. This increased accuracy to 100%. Wrote
+a function to produce "urchin" plots visualizing the distribution of points for a sample in LD space, with lines connecting them to the average.
+This neatly shows how most readings are within their species prediction on the graph, but a few fall outside bounds. If we average them,
+species identification goes perfectly! Also removed all April 30 data, because it consists of all 1's. Removed sp. novel from the training data
+since it was just adding noise. Will place it on the urchin plot later to see what it might be. Also made some edits to asd_cleanup.R, species
+is now a factor. Tested random forest model for fun, results were pretty bad. -Laurel
+

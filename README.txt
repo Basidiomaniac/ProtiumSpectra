@@ -1,6 +1,27 @@
 This project contains code for importing, cleaning, and analyzing NIR spectral data in the form of .asd files.
+Scripts provided for producing LDA models to discriminate between taxonomic categories based on NIR data.
 Code for this project was written by Niko Darci-Maher, Laurel Miller
 Last updated 2025
+
+No installation required, just install libraries and run R scripts.
+
+Required input:
+-.asd files containing NIR spectral data. You should edit the filepaths in asd_cleanup.R to match your file locations.
+asd_cleanup.R searches recursively, so it's okay if they're in subfolders. The main requirement here is .asd files,
+which contain one row per reading, and one column per wavelength measured. We configured our spectrometer to name
+files as "path/Date/Protium###x######.asd" representing sample number and reading number per sample. So
+Protium003x000011.asd is the 11th reading on sample 3. To group multiple readings per sample, you'll need to name
+your rows of data appropriately.
+-metadata. You can see an example of ours in NIR_test_data_metadata.csv. Line 113 (species = ...) allocates 
+metadata from the meta dataframe into your main spectral data. For any metadata you have, just fill in the
+rename portion of the command.
+
+Scripts:
+asd_cleanup.R - Code for importing, cleaning, and combining spectral data files with metadata. After this code,
+you're ready to begin building models and analyzing your data.
+asd_identify.R - Code to build LDA models, test success of averaged versus non-averaged models, and plot
+results on an abstracted "LD space" of your wavelength data.
+asd_analyze.R - Code to analyze wave data. Still in progress.
 
 Example data files:
 March 20 - Contains Protium samples 1-52. Can be used with the "appetizer course" code for testing species ID

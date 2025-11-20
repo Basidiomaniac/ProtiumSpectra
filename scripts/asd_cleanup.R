@@ -60,7 +60,7 @@ spectra_cleanup = function(df) {
 asd_dir = '/home/girlmunculus/spectraProj/asd/' # location of .asd files
 github_dir = '/home/girlmunculus/GitHub/ProtiumSpectra/' # location of GitHub project
 
-# some basic test commands using provided test file
+# importing and plotting from asdreader as a reference file.
 test_file = asd_file()
 test_spectra = get_spectra(test_file)
 head(test_spectra)
@@ -109,7 +109,7 @@ spectra_cleaner = spectra_spliced %>%
 
 # read in the metadata on each sample
 setwd(github_dir)
-meta = read.csv('subserratum_NIR_project.csv')
+meta = read.csv('NIR_test_data_metadata.csv')
 species = meta %>% mutate(sample = str_split_i(ViewSpecFile.Folder, 'Protium', 2) %>%
                             as.numeric) %>%
   rename(population_lineage = population.lineage,
@@ -124,9 +124,25 @@ nir = spectra_cleaner %>% left_join(species, by = 'sample') %>%
                 geographic_location, date, starts_with('nm')) %>% 
   mutate(date_parsed = parse_date_time(date, orders = "B y")) %>%
   mutate(date_num = as.numeric(date_parsed))  # make date numeric for LDA later
+wavelengths = grep("^nm", names(nir), value = TRUE)
+nir = nir %>%
+  mutate(species = na_if(species, "")) %>%
+  filter(if_all(all_of(wavelengths), ~ is.finite(.x))) %>%
+  drop_na() %>% 
+  mutate(across(where(is.factor), droplevels))
 # test plot spectra by species
-nir_long = lengthen(nir)
-spectra_plot(nir_long, nir_long$species)
+#nir_long = lengthen(nir)
+#spectra_plot(nir_long, nir_long$species)
+
+# removing April 23 (all values were 1?)
+nir = nir[nir$date_num != 1680307200,]
+
+# combining species with lineage for predicting later
+nir$specieslineage = paste(nir$species, "-", nir$population_lineage)
+
+# we don't want to train on species we don't know the identity of
+nir = nir[nir$species != "sp. nov",]
+
 
 # now, open asd_identify.R to start linear discriminant analysis (LDA)
 # for species identification.
