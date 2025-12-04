@@ -109,39 +109,50 @@ spectra_cleaner = spectra_spliced %>%
 
 # read in the metadata on each sample
 setwd(github_dir)
-meta = read.csv('NIR_test_data_metadata.csv')
-species = meta %>% mutate(sample = str_split_i(ViewSpecFile.Folder, 'Protium', 2) %>%
-                            as.numeric) %>%
+meta = read.csv('protium_metadata_full.csv')
+species = meta %>%
   rename(population_lineage = population.lineage,
-         geographic_location = geographic.location,
-         date = DataFolder) %>%
-  dplyr::select(sample, species, population_lineage, geographic_location, date) %>% 
+         geographic_location = geo_loc,
+         geo_2 = geo_2,
+         date = date_scanned,
+         genome = genome_confirmed) %>%
+  dplyr::select(accession_num, sample, species, population_lineage,
+                geographic_location, date, genome) %>% 
   mutate(sample = str_pad(sample, width = 3, side = "left", pad = "0"))
 
 # combine species metadata with nir data
 nir = spectra_cleaner %>% left_join(species, by = 'sample') %>%
-  dplyr::select(sample, replicate, species, population_lineage, 
-                geographic_location, date, starts_with('nm')) %>% 
+  dplyr::select(sample, replicate, accession_num, species, population_lineage, 
+                geographic_location, date, genome, starts_with('nm')) %>% 
   mutate(date_parsed = parse_date_time(date, orders = "B y")) %>%
   mutate(date_num = as.numeric(date_parsed))  # make date numeric for LDA later
 wavelengths = grep("^nm", names(nir), value = TRUE)
 nir = nir %>%
   mutate(species = na_if(species, "")) %>%
   filter(if_all(all_of(wavelengths), ~ is.finite(.x))) %>%
-  drop_na() %>% 
+  mutate(genome = replace_na(as.logical(genome), FALSE)) %>%  
+  drop_na(wavelengths) %>% 
   mutate(across(where(is.factor), droplevels))
 # test plot spectra by species
 #nir_long = lengthen(nir)
 #spectra_plot(nir_long, nir_long$species)
 
+# further, add in metadata from Misiewicz et al. 2023
+misiewicz = read.csv('tracy_specimens_subserratum.csv')
+nir$accession_num = as.character(nir$accession_num)
+nir = merge(nir, misiewicz, by = 'accession_num', all.x = TRUE)
+
 # removing April 23 (all values were 1?)
-nir = nir[nir$date_num != 1680307200,]
+nir = nir[nir$date != 23042025,]
 
 # combining species with lineage for predicting later
 nir$specieslineage = paste(nir$species, "-", nir$population_lineage)
 
 # we don't want to train on species we don't know the identity of
 nir = nir[nir$species != "sp. nov",]
+
+# found some spaces in lineages
+nir$population_lineage[nir$population_lineage == "A "] = "A"
 
 
 # now, open asd_identify.R to start linear discriminant analysis (LDA)

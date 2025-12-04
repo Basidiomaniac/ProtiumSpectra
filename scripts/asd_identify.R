@@ -9,6 +9,7 @@ library(klaR)
 library(lme4)
 library(randomForest)
 library(caret)
+library(class)
 
 # plot mean wavelength per sample
 nir_sample <- nir %>%
@@ -26,7 +27,7 @@ nir_sample_long = nir_sample %>% pivot_longer(cols = starts_with('nm'),
 
 line_plot_sample = ggplot(nir_sample_long, aes(x = wavelength, y = reflectance_mean, color = species)) +
   geom_line(aes(group = sample)) 
-line_plot_sample
+# line_plot_sample
 
 # means for each species, plot
 nir_species = nir %>% group_by(species) %>%
@@ -39,29 +40,20 @@ nir_species = nir_species %>% pivot_longer(cols = starts_with('nm'),
 line_plot_species = ggplot(nir_species, aes(x = wavelength, y = reflectance_mean, color = species)) +
   geom_line(aes(group = species)) +
   scale_color_viridis_d(option = "plasma")
-line_plot_species
+# line_plot_species
 
-# looking at lineages
-subserratum = nir[nir$species == "subserratum",]
-sub_lineage = subserratum %>% group_by(population_lineage) %>%
-  summarize_at(vars(starts_with('nm')), mean)
-sub_lineage = sub_lineage %>% pivot_longer(cols = starts_with('nm'),
-                                           names_to = 'wavelength',
-                                           names_prefix = 'nm',
-                                           values_to = 'reflectance_mean') %>%
-  mutate(wavelength = as.numeric(wavelength))
 line_plot_species = ggplot() +
   geom_line(data=nir_species, aes(x=wavelength, y=reflectance_mean), alpha = 0.5) +
-  geom_line(data = sub_lineage, aes(x=wavelength, y=reflectance_mean, color=population_lineage, group = population_lineage)) +
+  geom_line(data = nir_species, aes(x=wavelength, y=reflectance_mean, color=population_lineage, group = population_lineage)) +
   scale_color_viridis_d(option = "plasma")
-line_plot_species
+# line_plot_species
 
 # plot with density by species
 nir_long = lengthen(nir)
 line_plot_species = ggplot(nir_long, aes(x = wavelength, y = intensity, color = species)) +
   geom_line(aes(group = sample), alpha = 0.2) +
   scale_color_viridis_d(option = "plasma")
-line_plot_species
+# line_plot_species
 
 # check the normality of all the wavelengths
 # NOTE: When running all test data, multimodal distributions show up. Why??
@@ -77,14 +69,14 @@ normaldist_plot = ggplot(nir_long, aes(x = reflectance, color = wavelength)) +
   theme_classic() +
   theme(legend.position = 'none') +
   facet_wrap(~ date)
-normaldist_plot
+# normaldist_plot
 
 # hmm, measurements across dates seem to vary, but this is also because we 
 # sampled different species on different days. Let's compare within species
 # across dates.
 # currently crashes
-date_lmer = lmer(intensity ~ date + (1 | species), data = nir_long)
-summary(date_lmer)
+# date_lmer = lmer(intensity ~ date + (1 | species), data = nir_long)
+# summary(date_lmer)
 # no surprise: species and date are sig. predictors of intensity,
 
 
@@ -147,7 +139,7 @@ lda_space_plot <- ggplot(sample_lda_data, aes(x = LD1, y = LD2, color = Species)
     x = "Linear Discriminant 1 (LD1)",
     y = "Linear Discriminant 2 (LD2)"
   )
-lda_space_plot # looks like the LDA covers a decent amount of variance, species are well-separated
+# lda_space_plot # looks like the LDA covers a decent amount of variance, species are well-separated
 
 # let's see how good ALL our LD's are
 ld_variance = round(sample_lda_model$svd^2 / sum(sample_lda_model$svd^2) * 100, 1) %>% data.frame() 
@@ -160,7 +152,7 @@ lda_bar_plot = ggplot(ld_variance, aes(x = ld, y = explains)) +
     title = "Linear Discriminant Effectiveness",
     x = "Linear Discriminant",
     y = "% of Variance Explained")
-lda_bar_plot
+# lda_bar_plot
 
 # Predict species (and get LD's) for ALL data points, not averaged by sample
 # This is for visualization
@@ -230,7 +222,7 @@ nir_lda_data = data.frame(
   LD1 = nir_predict$x[, 1],
   LD2 = nir_predict$x[, 2] # Only the first two LDs are used
 )
-urchin_plot(sample_lda_data, nir_lda_data, -50, 25, -50, 25)
+# urchin_plot(sample_lda_data, nir_lda_data, -50, 25, -50, 25)
 # looks messy, even though classification is 93% accurate
 
 # let's look at loading of each wavelengths on the model LD's
